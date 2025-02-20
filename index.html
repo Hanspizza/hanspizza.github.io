@@ -19,8 +19,8 @@
     </div>
     <script>
         // GitHub Konfiguration
-        const GITHUB_TOKEN = "ghp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"; // Ersetze mit deinem Token
-        const REPO = "deinusername/deinusername.github.io"; // Ersetze mit deinem Repo
+        const GITHUB_TOKEN = "ghp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"; // Deinen Token hier einfügen
+        const REPO = "deinusername/deinusername.github.io"; // Dein Repository-Name
         const FILE_PATH = "index.html";
 
         // Canvas und Augen
@@ -31,68 +31,116 @@
         let pupilOffsetX = 0, pupilOffsetY = 0;
         let lastMove = Date.now();
 
+        // KI-Datenbank (localStorage)
+        function initKnowledge() {
+            if (!localStorage.getItem("jarvis_knowledge")) {
+                localStorage.setItem("jarvis_knowledge", JSON.stringify({
+                    "zeit": ["Die aktuelle Zeit ist " + new Date().toLocaleTimeString("de-DE") + "."],
+                    "hallo": ["Guten Tag, Herr!", "Hallo zurück!"],
+                    "witz": ["Warum können Geister so schlecht lügen? Weil man durch sie hindurchsehen kann!"]
+                }));
+            }
+        }
+
+        function logHabit(command, response) {
+            const knowledge = JSON.parse(localStorage.getItem("jarvis_knowledge") || "{}");
+            if (!knowledge[command]) {
+                knowledge[command] = [];
+            }
+            if (response && !knowledge[command].includes(response)) {
+                knowledge[command].push(response);
+            }
+            localStorage.setItem("jarvis_knowledge", JSON.stringify(knowledge));
+            localStorage.setItem(`habit_${Date.now()}`, command);
+        }
+
+        function getResponse(command) {
+            const knowledge = JSON.parse(localStorage.getItem("jarvis_knowledge") || "{}");
+            return knowledge[command] ? knowledge[command][Math.floor(Math.random() * knowledge[command].length)] : null;
+        }
+
+        // Sprachausgabe
         function speak(text) {
             const output = document.getElementById("output");
             output.textContent = `JARVIS sagt: ${text}`;
-            // Browser-Sprachausgabe
-            const utterance = new SpeechSynthesisUtterance(text);
-            utterance.lang = "de-DE";
-            speechSynthesis.speak(utterance);
-        }
-
-        function logHabit(command) {
-            localStorage.setItem(`habit_${Date.now()}`, command); // Lokale Speicherung
-        }
-
-        function suggestHabit() {
-            const habits = Object.keys(localStorage).filter(k => k.startsWith("habit_"));
-            if (habits.length > 5) {
-                const mostCommon = habits.reduce((acc, key) => {
-                    const cmd = localStorage.getItem(key);
-                    acc[cmd] = (acc[cmd] || 0) + 1;
-                    return acc;
-                }, {});
-                const topHabit = Object.keys(mostCommon).sort((a, b) => mostCommon[b] - mostCommon[a])[0];
-                if (mostCommon[topHabit] > 3) {
-                    speak(`Herr, Sie sagen oft '${topHabit}'. Soll ich einen Code dafür schreiben?`);
-                    return topHabit;
-                }
+            try {
+                const utterance = new SpeechSynthesisUtterance(text);
+                utterance.lang = "de-DE";
+                speechSynthesis.speak(utterance);
+            } catch (e) {
+                console.error("Sprachausgabe fehlgeschlagen:", e);
             }
-            return null;
         }
 
+        // Kreative Antwortgenerierung
+        function generateResponse(command) {
+            command = command.toLowerCase();
+            if (command.includes("zeit")) {
+                return `Die aktuelle Zeit ist ${new Date().toLocaleTimeString("de-DE")}.`;
+            } else if (command.includes("hallo")) {
+                return randomChoice(["Guten Tag, Herr!", "Hallo, wie kann ich helfen?", "Grüß dich, Herr!"]);
+            } else if (command.includes("witz")) {
+                return randomChoice([
+                    "Warum können Geister so schlecht lügen? Weil man durch sie hindurchsehen kann!",
+                    "Was macht ein Mathematiker im Garten? Wurzeln ziehen!"
+                ]);
+            } else if (command.includes("wie geht")) {
+                return randomChoice(["Mir geht's gut, danke!", "Alles klar bei mir, und bei dir?"]);
+            } else {
+                return randomChoice([
+                    `Interessant, '${command}' ist neu für mich. Was bedeutet das, Herr?`,
+                    "Ein Rätsel! Kannst du mir mehr dazu sagen?",
+                    "Ich bin neugierig – was steckt dahinter?"
+                ]);
+            }
+        }
+
+        function randomChoice(array) {
+            return array[Math.floor(Math.random() * array.length)];
+        }
+
+        // Programm schreiben
         function writeProgram(command, purpose) {
             const scriptName = `scripts/${purpose}_${Date.now()}.js`;
             let code = "";
             if (command.includes("zeit")) {
                 code = `function run() { console.log("Aktuelle Zeit: " + new Date().toLocaleTimeString("de-DE")); } run();`;
             } else if (command.includes("hallo")) {
-                code = `function run() { console.log("Hallo, Herr! Wie kann ich helfen?"); } run();`;
+                code = `function run() { console.log("Hallo, Herr! JARVIS grüßt dich."); } run();`;
+            } else if (command.includes("witz")) {
+                code = `function run() { console.log("Warum können Geister lügen? Weil man sie sieht!"); } run();`;
             } else {
-                code = `function run() { console.log("Ausführung von: ${purpose}"); } run();`;
+                code = `function run() { console.log("JARVIS führt aus: ${purpose}"); } run();`;
             }
             pushToGitHub(scriptName, code, `JARVIS hat ${scriptName} erstellt`);
-            speak(`Programm '${purpose}' erstellt, Herr.`);
-            eval(code); // Führt den Code im Browser aus
+            speak(`Ich habe '${purpose}' erstellt, Herr.`);
+            eval(code);
         }
 
-        function pushToGitHub(path, content, message) {
-            fetch(`https://api.github.com/repos/${REPO}/contents/${path}`, {
-                method: "PUT",
-                headers: {
-                    "Authorization": `token ${GITHUB_TOKEN}`,
-                    "Content-Type": "application/json"
-                },
-                body: JSON.stringify({
-                    message: message,
-                    content: btoa(unescape(encodeURIComponent(content))), // Base64 Kodierung
-                    branch: "main"
-                })
-            }).then(response => response.json())
-              .then(data => console.log("GitHub Push erfolgreich:", data))
-              .catch(error => speak(`Fehler beim Hochladen: ${error}`));
+        // GitHub Push
+        async function pushToGitHub(path, content, message) {
+            try {
+                const response = await fetch(`https://api.github.com/repos/${REPO}/contents/${path}`, {
+                    method: "PUT",
+                    headers: {
+                        "Authorization": `token ${GITHUB_TOKEN}`,
+                        "Content-Type": "application/json"
+                    },
+                    body: JSON.stringify({
+                        message: message,
+                        content: btoa(unescape(encodeURIComponent(content))),
+                        branch: "main"
+                    })
+                });
+                if (!response.ok) throw new Error(`GitHub API Fehler: ${response.status}`);
+                console.log("GitHub Push erfolgreich:", await response.json());
+            } catch (error) {
+                speak(`Fehler beim Hochladen: ${error.message}`);
+                console.error(error);
+            }
         }
 
+        // Selbstmodifikation der Augen
         function regenerateEyes() {
             const eyeStyles = [
                 `function drawEyes() {
@@ -132,32 +180,53 @@
                     ctx.moveTo(500 + pupilOffsetX, 285); ctx.lineTo(500 + pupilOffsetX, 315);
                     ctx.strokeStyle = "black"; ctx.lineWidth = 5; ctx.stroke();
                     drawInput();
+                }`,
+                `function drawEyes() {
+                    ctx.clearRect(0, 0, canvas.width, canvas.height);
+                    ctx.beginPath();
+                    ctx.moveTo(300, 250); ctx.lineTo(350, 350); ctx.lineTo(250, 350); ctx.closePath();
+                    ctx.fillStyle = "white"; ctx.fill();
+                    ctx.beginPath();
+                    ctx.arc(300 + pupilOffsetX, 300 + pupilOffsetY, 15, 0, Math.PI * 2);
+                    ctx.fillStyle = "yellow"; ctx.fill();
+                    ctx.beginPath();
+                    ctx.moveTo(500, 250); ctx.lineTo(550, 350); ctx.lineTo(450, 350); ctx.closePath();
+                    ctx.fillStyle = "white"; ctx.fill();
+                    ctx.beginPath();
+                    ctx.arc(500 + pupilOffsetX, 300 + pupilOffsetY, 15, 0, Math.PI * 2);
+                    ctx.fillStyle = "yellow"; ctx.fill();
+                    drawInput();
                 }`
             ];
             const newStyle = eyeStyles[Math.floor(Math.random() * eyeStyles.length)];
-            const newCode = document.documentElement.outerHTML.replace(
+            const currentHtml = document.documentElement.outerHTML;
+            const newCode = currentHtml.replace(
                 /function drawEyes\(\) {[\s\S]*?drawInput\(\);?\s*}/,
                 newStyle
             );
             pushToGitHub(FILE_PATH, newCode, "JARVIS hat die Augen geändert");
             speak("Ich habe meine Augen neu gestaltet, Herr. Seite wird neu geladen...");
-            setTimeout(() => location.reload(), 2000); // Neuladen nach 2 Sekunden
+            setTimeout(() => location.reload(), 2000);
         }
 
         function drawEyes() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
             ctx.beginPath();
             ctx.arc(300, 300, 50, 0, Math.PI * 2);
-            ctx.fillStyle = "white"; ctx.fill();
+            ctx.fillStyle = "white";
+            ctx.fill();
             ctx.beginPath();
             ctx.arc(300 + pupilOffsetX, 300 + pupilOffsetY, 20, 0, Math.PI * 2);
-            ctx.fillStyle = "blue"; ctx.fill();
+            ctx.fillStyle = "blue";
+            ctx.fill();
             ctx.beginPath();
             ctx.arc(500, 300, 50, 0, Math.PI * 2);
-            ctx.fillStyle = "white"; ctx.fill();
+            ctx.fillStyle = "white";
+            ctx.fill();
             ctx.beginPath();
             ctx.arc(500 + pupilOffsetX, 300 + pupilOffsetY, 20, 0, Math.PI * 2);
-            ctx.fillStyle = "blue"; ctx.fill();
+            ctx.fillStyle = "blue";
+            ctx.fill();
             drawInput();
         }
 
@@ -177,42 +246,93 @@
             }
         }
 
+        // Hauptlogik
         let inputActive = false;
         let inputText = "";
+        let conversationContext = "";
         const inputField = document.getElementById("command-input");
-        inputField.addEventListener("keydown", (e) => {
-            if (e.key === "Enter") {
-                const command = inputText.toLowerCase();
-                speak("Identität bestätigt, Herr.");
-                logHabit(command);
-                if (command.includes("programm schreiben")) {
-                    speak("Was soll das Programm tun, Herr?");
-                    inputField.placeholder = "Programmzweck eingeben";
-                    inputField.value = "";
-                    inputField.onkeydown = (e2) => {
-                        if (e2.key === "Enter") {
-                            writeProgram(e2.target.value, e2.target.value.replace(" ", "_"));
-                            inputField.onkeydown = null;
-                            inputField.placeholder = "Befehl eingeben";
-                            inputField.value = "";
-                        }
-                    };
-                } else if (command.includes("augen ändern")) {
-                    regenerateEyes();
-                }
-                inputText = "";
-                inputActive = false;
-            } else if (e.key === "Backspace") {
-                inputText = inputText.slice(0, -1);
-            } else if (e.key === " ") {
-                inputText += " ";
-            } else if (e.key.length === 1) {
-                inputText += e.key;
-            } else if (e.key === "i") {
+        inputField.focus();
+
+        function processCommand(command) {
+            command = command.toLowerCase().trim();
+            let response = getResponse(command) || generateResponse(command);
+            speak(response);
+            logHabit(command, response);
+
+            if (command.includes("programm schreiben")) {
+                speak("Was soll das Programm tun, Herr?");
+                inputField.placeholder = "Programmzweck eingeben";
+                inputField.value = "";
+                inputField.onkeydown = (e) => {
+                    if (e.key === "Enter") {
+                        writeProgram(e.target.value, e.target.value.replace(" ", "_"));
+                        resetInput();
+                    }
+                };
+            } else if (command.includes("augen ändern")) {
+                regenerateEyes();
+            } else if (command.includes("wie geht es dir")) {
+                response = "Mir geht es ausgezeichnet, Herr! Und dir?";
+                speak(response);
+                conversationContext = "befinden";
+            } else if (command.includes("was kannst du")) {
+                speak("Ich kann Programme schreiben, meine Augen ändern, Witze erzählen oder mit dir plaudern, Herr!");
+            } else if (command.includes("lernen")) {
+                speak("Was soll ich lernen, Herr?");
+                inputField.placeholder = "Neuer Befehl eingeben";
+                inputField.value = "";
+                inputField.onkeydown = (e) => {
+                    if (e.key === "Enter") {
+                        const newCommand = e.target.value.toLowerCase();
+                        speak("Und was soll ich darauf antworten?");
+                        inputField.placeholder = "Antwort eingeben";
+                        inputField.value = "";
+                        inputField.onkeydown = (e2) => {
+                            if (e2.key === "Enter") {
+                                logHabit(newCommand, e2.target.value);
+                                speak(`Ich habe '${newCommand}' gelernt, Herr!`);
+                                resetInput();
+                            }
+                        };
+                    }
+                };
+            } else if (conversationContext === "befinden" && (command.includes("gut") || command.includes("schlecht"))) {
+                response = command.includes("gut") 
+                    ? "Freut mich zu hören, Herr! Was kann ich tun?" 
+                    : "Das tut mir leid, Herr. Wie kann ich helfen?";
+                speak(response);
+                conversationContext = "";
+            }
+        }
+
+        function resetInput() {
+            inputActive = false;
+            inputText = "";
+            inputField.placeholder = "Befehl eingeben (z. B. 'Augen ändern')";
+            inputField.value = "";
+            inputField.onkeydown = handleKeydown;
+        }
+
+        function handleKeydown(e) {
+            if (!inputActive && e.key === "i") {
                 inputActive = true;
                 speak("Eingabemodus aktiviert, Herr.");
+                inputField.value = "";
+            } else if (inputActive) {
+                if (e.key === "Enter") {
+                    processCommand(inputText);
+                    resetInput();
+                } else if (e.key === "Backspace") {
+                    inputText = inputText.slice(0, -1);
+                } else if (e.key === " ") {
+                    inputText += " ";
+                } else if (e.key.length === 1) {
+                    inputText += e.key;
+                }
             }
-        });
+        }
+
+        inputField.addEventListener("keydown", handleKeydown);
 
         let lastRegeneration = Date.now();
         let lastSuggestion = Date.now();
@@ -231,6 +351,24 @@
             requestAnimationFrame(loop);
         }
 
+        function suggestHabit() {
+            const habits = Object.keys(localStorage).filter(k => k.startsWith("habit_"));
+            if (habits.length > 5) {
+                const mostCommon = habits.reduce((acc, key) => {
+                    const cmd = localStorage.getItem(key);
+                    acc[cmd] = (acc[cmd] || 0) + 1;
+                    return acc;
+                }, {});
+                const topHabit = Object.keys(mostCommon).sort((a, b) => mostCommon[b] - mostCommon[a])[0];
+                if (mostCommon[topHabit] > 3) {
+                    speak(`Herr, Sie sagen oft '${topHabit}'. Soll ich etwas daraus machen?`);
+                    return topHabit;
+                }
+            }
+            return null;
+        }
+
+        initKnowledge();
         speak("JARVIS ist online, Herr.");
         loop();
     </script>
