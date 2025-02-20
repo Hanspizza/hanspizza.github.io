@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <title>JARVIS im Browser</title>
+    <style>
+        body { background: black; margin: 0; display: flex; flex-direction: column; align-items: center; }
+        #eyes { width: 800px; height: 600px; }
+        #input-container { margin-top: 20px; }
+        #command-input { padding: 10px; font-size: 16px; width: 300px; }
+        #output { color: white; font-family: Arial, sans-serif; margin-top: 10px; }
+    </style>
+</head>
+<body>
+    <canvas id="eyes"></canvas>
+    <div id="input-container">
+        <input type="text" id="command-input" placeholder="Befehl eingeben (z. B. 'Augen ändern')">
+        <div id="output"></div>
+    </div>
+    <script>
+        // GitHub Konfiguration
+        const GITHUB_TOKEN = "ghp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"; // Ersetze mit deinem Token
+        const REPO = "deinusername/deinusername.github.io"; // Ersetze mit deinem Repo
+        const FILE_PATH = "index.html";
+
+        // Canvas und Augen
+        const canvas = document.getElementById("eyes");
+        const ctx = canvas.getContext("2d");
+        canvas.width = 800;
+        canvas.height = 600;
+        let pupilOffsetX = 0, pupilOffsetY = 0;
+        let lastMove = Date.now();
+
+        function speak(text) {
+            const output = document.getElementById("output");
+            output.textContent = `JARVIS sagt: ${text}`;
+            // Browser-Sprachausgabe
+            const utterance = new SpeechSynthesisUtterance(text);
+            utterance.lang = "de-DE";
+            speechSynthesis.speak(utterance);
+        }
+
+        function logHabit(command) {
+            localStorage.setItem(`habit_${Date.now()}`, command); // Lokale Speicherung
+        }
+
+        function suggestHabit() {
+            const habits = Object.keys(localStorage).filter(k => k.startsWith("habit_"));
+            if (habits.length > 5) {
+                const mostCommon = habits.reduce((acc, key) => {
+                    const cmd = localStorage.getItem(key);
+                    acc[cmd] = (acc[cmd] || 0) + 1;
+                    return acc;
+                }, {});
+                const topHabit = Object.keys(mostCommon).sort((a, b) => mostCommon[b] - mostCommon[a])[0];
+                if (mostCommon[topHabit] > 3) {
+                    speak(`Herr, Sie sagen oft '${topHabit}'. Soll ich einen Code dafür schreiben?`);
+                    return topHabit;
+                }
+            }
+            return null;
+        }
+
+        function writeProgram(command, purpose) {
+            const scriptName = `scripts/${purpose}_${Date.now()}.js`;
+            let code = "";
+            if (command.includes("zeit")) {
+                code = `function run() { console.log("Aktuelle Zeit: " + new Date().toLocaleTimeString("de-DE")); } run();`;
+            } else if (command.includes("hallo")) {
+                code = `function run() { console.log("Hallo, Herr! Wie kann ich helfen?"); } run();`;
+            } else {
+                code = `function run() { console.log("Ausführung von: ${purpose}"); } run();`;
+            }
+            pushToGitHub(scriptName, code, `JARVIS hat ${scriptName} erstellt`);
+            speak(`Programm '${purpose}' erstellt, Herr.`);
+            eval(code); // Führt den Code im Browser aus
+        }
+
+        function pushToGitHub(path, content, message) {
+            fetch(`https://api.github.com/repos/${REPO}/contents/${path}`, {
+                method: "PUT",
+                headers: {
+                    "Authorization": `token ${GITHUB_TOKEN}`,
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify({
+                    message: message,
+                    content: btoa(unescape(encodeURIComponent(content))), // Base64 Kodierung
+                    branch: "main"
+                })
+            }).then(response => response.json())
+              .then(data => console.log("GitHub Push erfolgreich:", data))
+              .catch(error => speak(`Fehler beim Hochladen: ${error}`));
+        }
+
+        function regenerateEyes() {
+            const eyeStyles = [
+                `function drawEyes() {
+                    ctx.clearRect(0, 0, canvas.width, canvas.height);
+                    ctx.beginPath();
+                    ctx.arc(300, 300, 60, 0, Math.PI * 2);
+                    ctx.fillStyle = "white"; ctx.fill();
+                    ctx.beginPath();
+                    ctx.arc(300 + pupilOffsetX, 300 + pupilOffsetY, 20, 0, Math.PI * 2);
+                    ctx.fillStyle = "red"; ctx.fill();
+                    ctx.beginPath();
+                    ctx.arc(500, 300, 60, 0, Math.PI * 2);
+                    ctx.fillStyle = "white"; ctx.fill();
+                    ctx.beginPath();
+                    ctx.arc(500 + pupilOffsetX, 300 + pupilOffsetY, 20, 0, Math.PI * 2);
+                    ctx.fillStyle = "red"; ctx.fill();
+                    drawInput();
+                }`,
+                `function drawEyes() {
+                    ctx.clearRect(0, 0, canvas.width, canvas.height);
+                    ctx.beginPath();
+                    ctx.moveTo(250, 280); ctx.lineTo(350, 280); ctx.lineTo(330, 320); ctx.lineTo(270, 320); ctx.closePath();
+                    ctx.fillStyle = "white"; ctx.fill();
+                    ctx.beginPath();
+                    ctx.moveTo(260, 290); ctx.lineTo(340, 290); ctx.lineTo(325, 310); ctx.lineTo(275, 310); ctx.closePath();
+                    ctx.fillStyle = "green"; ctx.fill();
+                    ctx.beginPath();
+                    ctx.moveTo(300 + pupilOffsetX, 285); ctx.lineTo(300 + pupilOffsetX, 315);
+                    ctx.strokeStyle = "black"; ctx.lineWidth = 5; ctx.stroke();
+                    ctx.beginPath();
+                    ctx.moveTo(450, 280); ctx.lineTo(550, 280); ctx.lineTo(530, 320); ctx.lineTo(470, 320); ctx.closePath();
+                    ctx.fillStyle = "white"; ctx.fill();
+                    ctx.beginPath();
+                    ctx.moveTo(460, 290); ctx.lineTo(540, 290); ctx.lineTo(525, 310); ctx.lineTo(475, 310); ctx.closePath();
+                    ctx.fillStyle = "green"; ctx.fill();
+                    ctx.beginPath();
+                    ctx.moveTo(500 + pupilOffsetX, 285); ctx.lineTo(500 + pupilOffsetX, 315);
+                    ctx.strokeStyle = "black"; ctx.lineWidth = 5; ctx.stroke();
+                    drawInput();
+                }`
+            ];
+            const newStyle = eyeStyles[Math.floor(Math.random() * eyeStyles.length)];
+            const newCode = document.documentElement.outerHTML.replace(
+                /function drawEyes\(\) {[\s\S]*?drawInput\(\);?\s*}/,
+                newStyle
+            );
+            pushToGitHub(FILE_PATH, newCode, "JARVIS hat die Augen geändert");
+            speak("Ich habe meine Augen neu gestaltet, Herr. Seite wird neu geladen...");
+            setTimeout(() => location.reload(), 2000); // Neuladen nach 2 Sekunden
+        }
+
+        function drawEyes() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.beginPath();
+            ctx.arc(300, 300, 50, 0, Math.PI * 2);
+            ctx.fillStyle = "white"; ctx.fill();
+            ctx.beginPath();
+            ctx.arc(300 + pupilOffsetX, 300 + pupilOffsetY, 20, 0, Math.PI * 2);
+            ctx.fillStyle = "blue"; ctx.fill();
+            ctx.beginPath();
+            ctx.arc(500, 300, 50, 0, Math.PI * 2);
+            ctx.fillStyle = "white"; ctx.fill();
+            ctx.beginPath();
+            ctx.arc(500 + pupilOffsetX, 300 + pupilOffsetY, 20, 0, Math.PI * 2);
+            ctx.fillStyle = "blue"; ctx.fill();
+            drawInput();
+        }
+
+        function drawInput() {
+            if (inputActive) {
+                ctx.font = "20px Arial";
+                ctx.fillStyle = "white";
+                ctx.fillText(`Eingabe: ${inputText}`, 50, 500);
+            }
+        }
+
+        function updateEyes() {
+            if (Date.now() - lastMove > 500) {
+                pupilOffsetX = Math.floor(Math.random() * 41) - 20;
+                pupilOffsetY = Math.floor(Math.random() * 41) - 20;
+                lastMove = Date.now();
+            }
+        }
+
+        let inputActive = false;
+        let inputText = "";
+        const inputField = document.getElementById("command-input");
+        inputField.addEventListener("keydown", (e) => {
+            if (e.key === "Enter") {
+                const command = inputText.toLowerCase();
+                speak("Identität bestätigt, Herr.");
+                logHabit(command);
+                if (command.includes("programm schreiben")) {
+                    speak("Was soll das Programm tun, Herr?");
+                    inputField.placeholder = "Programmzweck eingeben";
+                    inputField.value = "";
+                    inputField.onkeydown = (e2) => {
+                        if (e2.key === "Enter") {
+                            writeProgram(e2.target.value, e2.target.value.replace(" ", "_"));
+                            inputField.onkeydown = null;
+                            inputField.placeholder = "Befehl eingeben";
+                            inputField.value = "";
+                        }
+                    };
+                } else if (command.includes("augen ändern")) {
+                    regenerateEyes();
+                }
+                inputText = "";
+                inputActive = false;
+            } else if (e.key === "Backspace") {
+                inputText = inputText.slice(0, -1);
+            } else if (e.key === " ") {
+                inputText += " ";
+            } else if (e.key.length === 1) {
+                inputText += e.key;
+            } else if (e.key === "i") {
+                inputActive = true;
+                speak("Eingabemodus aktiviert, Herr.");
+            }
+        });
+
+        let lastRegeneration = Date.now();
+        let lastSuggestion = Date.now();
+        function loop() {
+            updateEyes();
+            drawEyes();
+            if (Date.now() - lastRegeneration > 3600000) { // Alle Stunde
+                regenerateEyes();
+                lastRegeneration = Date.now();
+            }
+            if (Date.now() - lastSuggestion > 1800000) { // Alle 30 Min
+                const habit = suggestHabit();
+                if (habit) writeProgram(habit, "gewohnheit");
+                lastSuggestion = Date.now();
+            }
+            requestAnimationFrame(loop);
+        }
+
+        speak("JARVIS ist online, Herr.");
+        loop();
+    </script>
+</body>
+</html>
